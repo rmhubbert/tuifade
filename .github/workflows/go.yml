@@ -81,9 +81,9 @@ jobs:
         with:
           token: ${{ github.token }}
           branch: main
-          majorList: "build!, ci!, docs!, feat!, fix!, perf!, refactor!, style!, test!"
+          majorList: "build!, ci!, docs!, feat!, fix!, perf!, refactor!, style!, test!, chore!"
           minorList: "feat"
-          patchList: "fix, perf, refactor, test, build, ci, docs"
+          patchList: "fix, perf, refactor, test, build, ci, docs, style, chore"
 
       - name: Push next version tag
         uses: thejeff77/action-push-tag@v1.0.0
