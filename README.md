@@ -1,1 +1,2 @@
-# tui-luminance
+# tuilum
+TUI luminance management
