@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strings"
 	"sync"
 
 	ansiParse "github.com/leaanthony/go-ansi-parser"
@@ -114,35 +113,6 @@ func Fade(content string, interpolation float64) (string, error) {
 	return fade(content, termBg, termFg, colourMode, interpolation)
 }
 
-// preProcessColors collects all unique calours and pre-converts them to populate cache
-func preProcessColors(parsed []*ansiParse.StyledText) error {
-	uniqueColors := make(map[string]struct{})
-
-	// Collect all unique colours
-	for _, segment := range parsed {
-		if segment.BgCol != nil && segment.BgCol.Hex != "" {
-			uniqueColors[segment.BgCol.Hex] = struct{}{}
-		}
-		if segment.FgCol != nil && segment.FgCol.Hex != "" {
-			uniqueColors[segment.FgCol.Hex] = struct{}{}
-		}
-	}
-
-	// Pre-convert all unique colours
-	for hex := range uniqueColors {
-		_, err := globalColourCache.getRGB(hex)
-		if err != nil {
-			return fmt.Errorf("failed to pre-process colour %s: %w", hex, err)
-		}
-		_, err = globalColourCache.getHSL(hex)
-		if err != nil {
-			return fmt.Errorf("failed to pre-process colour %s: %w", hex, err)
-		}
-	}
-
-	return nil
-}
-
 // fade fades the background and foreground colours of an ANSI string.
 func fade(
 	content, termBg, termFg string,
@@ -152,15 +122,9 @@ func fade(
 
 	// Parse the input string into segments
 	parsed, _ := ansiParse.Parse(content)
-
-	// Pre-process all unique colours to populate cache
-	err := preProcessColors(parsed)
-	if err != nil {
-		return "", err
-	}
-	builder := strings.Builder{}
+	// builder := strings.Builder{}
 	// Pre-allocate: estimate ~2x original length for ANSI sequences
-	builder.Grow(len(content) * 2)
+	// builder.Grow(len(content) * 2)
 
 	// Iterate over each segment and fade the background and foreground colours
 	for _, segment := range parsed {
@@ -204,9 +168,9 @@ func fade(
 		if err != nil {
 			return "", err
 		}
-		builder.WriteString(segment.String())
+		// builder.WriteString(segment.String())
 	}
-	return builder.String(), nil
+	return ansiParse.String(parsed), nil
 }
 
 // updateSegment updates the background and foreground colours of a segment.
