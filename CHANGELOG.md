@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.5] - 2026-01-17
+### :zap: Performance Improvements
+- [`b0d2780`](https://github.com/rmhubbert/tuifade/commit/b0d27804ad6bbf1e3821945748ed1070c847c470) - add colour cache to stop repeated conversion *(commit by [@rmhubbert](https://github.com/rmhubbert))*
+
+
 ## [v0.0.3] - 2026-01-17
 ### :recycle: Refactors
 - [`5db2821`](https://github.com/rmhubbert/tuilum/commit/5db28214833c9ec10fd5f6b6917c0d46472afc9d) - use go-ansi-parser to manipulate input *(commit by [@rmhubbert](https://github.com/rmhubbert))*
@@ -22,3 +27,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [v0.0.2]: https://github.com/rmhubbert/tuilum/compare/v0.0.1...v0.0.2
 [v0.0.3]: https://github.com/rmhubbert/tuilum/compare/v0.0.2...v0.0.3
+[v0.0.5]: https://github.com/rmhubbert/tuifade/compare/v0.0.4...v0.0.5
