@@ -1,6 +1,7 @@
 package tuifade
 
 import (
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -496,5 +497,374 @@ func BenchmarkInterpolate(b *testing.B) {
 
 	for b.Loop() {
 		_, _ = Interpolate(background, foreground, 0.5)
+	}
+}
+
+// BenchmarkInterpolate_CacheHit benchmarks Interpolate with cached colors
+func BenchmarkInterpolate_CacheHit(b *testing.B) {
+	background := "#ff0000"
+	foreground := "#0000ff"
+	// Pre-warm cache
+	_, _ = globalColourCache.getRGB(background)
+	_, _ = globalColourCache.getRGB(foreground)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = Interpolate(background, foreground, 0.5)
+	}
+}
+
+// BenchmarkColorCache_GetRGB benchmarks RGB cache lookups
+func BenchmarkColorCache_GetRGB(b *testing.B) {
+	hex := "#ff0000"
+	// Pre-warm cache
+	_, _ = globalColourCache.getRGB(hex)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = globalColourCache.getRGB(hex)
+	}
+}
+
+// BenchmarkColorCache_GetHSL benchmarks HSL cache lookups
+func BenchmarkColorCache_GetHSL(b *testing.B) {
+	hex := "#ff0000"
+	// Pre-warm cache
+	_, _ = globalColourCache.getHSL(hex)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = globalColourCache.getHSL(hex)
+	}
+}
+
+// BenchmarkColorCache_GetHSL_Cold benchmarks HSL cache lookups without pre-warming
+func BenchmarkColorCache_GetHSL_Cold(b *testing.B) {
+	for b.Loop() {
+		// Use different colors to avoid cache hits
+		hex := fmt.Sprintf("#%02x%02x%02x", b.N%256, b.N%256, b.N%256)
+		_, _ = globalColourCache.getHSL(hex)
+	}
+}
+
+// BenchmarkPreProcessColors benchmarks color preprocessing step (REMOVED - was causing performance regression)
+// func BenchmarkPreProcessColors(b *testing.B) {
+// 	// Create test content with many unique colors
+// 	parsed := make([]*ansiParse.StyledText, 100)
+// 	colors := []string{"#ff0000", "#00ff00", "#0000ff", "#ffff00", "#ff00ff", "#00ffff"}
+// 	for i := range parsed {
+// 		parsed[i] = &ansiParse.StyledText{
+// 			Label: "test",
+// 			FgCol: &ansiParse.Col{Hex: colors[i%len(colors)]},
+// 			BgCol: &ansiParse.Col{Hex: colors[(i+1)%len(colors)]},
+// 		}
+// 	}
+//
+// 	b.ResetTimer()
+// 	for b.Loop() {
+// 		_ = preProcessColors(parsed)
+// 	}
+// }
+
+// BenchmarkUpdateSegmentColours benchmarks segment color updates
+func BenchmarkUpdateSegmentColours(b *testing.B) {
+	segment := &ansiParse.StyledText{
+		Label: "test",
+		FgCol: &ansiParse.Col{},
+		BgCol: &ansiParse.Col{},
+	}
+	bgCol := "#ff0000"
+	fgCol := "#00ff00"
+	// Pre-warm cache
+	_, _ = globalColourCache.getRGB(bgCol)
+	_, _ = globalColourCache.getRGB(fgCol)
+	_, _ = globalColourCache.getHSL(bgCol)
+	_, _ = globalColourCache.getHSL(fgCol)
+
+	b.ResetTimer()
+	for b.Loop() {
+		_ = updateSegmentColours(segment, bgCol, fgCol)
+	}
+}
+
+// BenchmarkANSIParse benchmarks ANSI parsing step
+func BenchmarkANSIParse_Small(b *testing.B) {
+	content := "\x1b[31mRed\x1b[32mGreen\x1b[33mYellow\x1b[0m"
+	for b.Loop() {
+		_, _ = ansiParse.Parse(content)
+	}
+}
+
+func BenchmarkANSIParse_Medium(b *testing.B) {
+	content := ""
+	for i := 0; i < 100; i++ {
+		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = ansiParse.Parse(content)
+	}
+}
+
+func BenchmarkANSIParse_Large(b *testing.B) {
+	content := ""
+	for i := 0; i < 1000; i++ {
+		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = ansiParse.Parse(content)
+	}
+}
+
+func BenchmarkANSIParse_VeryLarge(b *testing.B) {
+	content := ""
+	for i := 0; i < 3000; i++ {
+		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = ansiParse.Parse(content)
+	}
+}
+
+// BenchmarkFade_Small benchmarks Fade with small content (~100 runes)
+func BenchmarkFade_Small(b *testing.B) {
+	termBg := "#000000"
+	termFg := "#ffffff"
+	colourMode := ansiParse.TrueColour
+
+	content := ""
+	for i := 0; i < 10; i++ {
+		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+	}
+}
+
+// BenchmarkFade_Medium benchmarks Fade with medium content (~1,000 runes)
+func BenchmarkFade_Medium(b *testing.B) {
+	termBg := "#000000"
+	termFg := "#ffffff"
+	colourMode := ansiParse.TrueColour
+
+	content := ""
+	for i := 0; i < 100; i++ {
+		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+	}
+}
+
+// BenchmarkFade_Large benchmarks Fade with large content (~10,000 runes)
+func BenchmarkFade_Large(b *testing.B) {
+	termBg := "#000000"
+	termFg := "#ffffff"
+	colourMode := ansiParse.TrueColour
+
+	content := ""
+	for i := 0; i < 1000; i++ {
+		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+	}
+}
+
+// BenchmarkFade_VeryLarge benchmarks Fade with very large content (~30,000 runes)
+func BenchmarkFade_VeryLarge(b *testing.B) {
+	termBg := "#000000"
+	termFg := "#ffffff"
+	colourMode := ansiParse.TrueColour
+
+	content := ""
+	for i := 0; i < 3000; i++ {
+		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+	}
+}
+
+// BenchmarkFade_VeryLarge_RepeatedColors benchmarks Fade with repeated colors
+func BenchmarkFade_VeryLarge_RepeatedColors(b *testing.B) {
+	termBg := "#000000"
+	termFg := "#ffffff"
+	colourMode := ansiParse.TrueColour
+
+	content := ""
+	for i := 0; i < 3000; i++ {
+		colorCode := 31 + i%6
+		content += fmt.Sprintf("\x1b[%dmtext%d ", colorCode, i)
+	}
+	content += "\x1b[0m"
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+	}
+}
+
+// BenchmarkFade_WithoutPreProcess benchmarks Fade without preprocessing step (REMOVED - no longer applicable)
+// func BenchmarkFade_WithoutPreProcess(b *testing.B) {
+// 	termBg := "#000000"
+// 	termFg := "#ffffff"
+// 	colourMode := ansiParse.TrueColour
+//
+// 	content := ""
+// 	for i := 0; i < 1000; i++ {
+// 		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+// 	}
+// 	content += "\x1b[0m"
+//
+// 	// Parse once
+// 	parsed, _ := ansiParse.Parse(content)
+//
+// 	b.ResetTimer()
+// 	for b.Loop() {
+// 		builder := strings.Builder{}
+// 		builder.Grow(len(content) * 2)
+//
+// 		for _, segment := range parsed {
+// 			segment.ColourMode = colourMode
+// 			bgCol := termBg
+// 			var fgCol string
+//
+// 			if segment.BgCol != nil && segment.BgCol.Hex != "" {
+// 				if segment.BgCol.Hex != termBg {
+// 					var err error
+// 					bgCol, err = Interpolate(bgCol, segment.BgCol.Hex, 0.5)
+// 					if err != nil {
+// 						b.Fatal(err)
+// 					}
+// 				}
+// 			}
+//
+// 			if segment.FgCol != nil && segment.FgCol.Hex != "" {
+// 				var err error
+// 				fgCol, err = Interpolate(bgCol, segment.FgCol.Hex, 0.5)
+// 				if err != nil {
+// 					b.Fatal(err)
+// 				}
+// 			} else {
+// 				if segment.FgCol == nil {
+// 					segment.FgCol = &ansiParse.Col{}
+// 				}
+//
+// 				var err error
+// 				fgCol, err = Interpolate(bgCol, termFg, 0.5)
+// 				if err != nil {
+// 					b.Fatal(err)
+// 				}
+// 			}
+//
+// 			err := updateSegmentColours(segment, bgCol, fgCol)
+// 			if err != nil {
+// 				b.Fatal(err)
+// 			}
+// 			builder.WriteString(segment.String())
+// 		}
+// 	}
+// }
+
+// BenchmarkStringBuilders benchmarks string building with different pre-allocation sizes
+func BenchmarkStringBuilders(b *testing.B) {
+	content := strings.Repeat("x", 10000)
+
+	b.Run("NoPrealloc", func(b *testing.B) {
+		for b.Loop() {
+			var builder strings.Builder
+			builder.WriteString(content)
+			builder.WriteString(content)
+			_ = builder.String()
+		}
+	})
+
+	b.Run("PreallocExact", func(b *testing.B) {
+		for b.Loop() {
+			var builder strings.Builder
+			builder.Grow(len(content) * 2)
+			builder.WriteString(content)
+			builder.WriteString(content)
+			_ = builder.String()
+		}
+	})
+
+	b.Run("PreallocDouble", func(b *testing.B) {
+		for b.Loop() {
+			var builder strings.Builder
+			builder.Grow(len(content) * 4)
+			builder.WriteString(content)
+			builder.WriteString(content)
+			_ = builder.String()
+		}
+	})
+}
+
+// BenchmarkHelperFunctions benchmarks individual helper functions
+func BenchmarkHelperFunctions(b *testing.B) {
+	b.Run("hexToRGB", func(b *testing.B) {
+		hex := "#ff0000"
+		for b.Loop() {
+			_, _ = hexToRGB(hex)
+		}
+	})
+
+	b.Run("rgbToHex", func(b *testing.B) {
+		rgb := rbgColour{R: 255, G: 0, B: 0}
+		for b.Loop() {
+			_ = rgbToHex(rgb)
+		}
+	})
+
+	b.Run("interpolateChannel", func(b *testing.B) {
+		for b.Loop() {
+			_ = interpolateChannel(0, 255, 0.5, 0.5)
+		}
+	})
+
+	b.Run("rgbToHSL", func(b *testing.B) {
+		rgb := rbgColour{R: 255, G: 0, B: 0}
+		for b.Loop() {
+			_, _, _ = rgbToHSL(rgb)
+		}
+	})
+}
+
+// BenchmarkSegmentString benchmarks segment.String() performance
+func BenchmarkSegmentString(b *testing.B) {
+	segment := &ansiParse.StyledText{
+		Label:      "test text",
+		FgCol:      &ansiParse.Col{Hex: "#ff0000"},
+		BgCol:      &ansiParse.Col{Hex: "#0000ff"},
+		Style:      ansiParse.Bold,
+		ColourMode: ansiParse.TrueColour,
+		Offset:     0,
+		Len:        9,
+	}
+
+	b.ResetTimer()
+	for b.Loop() {
+		_ = segment.String()
 	}
 }
