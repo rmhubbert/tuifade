@@ -1,6 +1,6 @@
-// Package tuilum provides functions for fading the background and foreground colours of an ANSI
+// Package tuifade provides functions for fading the background and foreground colours of an ANSI
 // string.
-package tuilum
+package tuifade
 
 import (
 	"errors"

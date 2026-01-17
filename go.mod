@@ -1,4 +1,4 @@
-module github.com/rmhubbert/tuilum
+module github.com/rmhubbert/tuifade
 
 go 1.25.5
 
