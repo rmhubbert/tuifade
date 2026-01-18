@@ -12,6 +12,7 @@ require (
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/goforj/godump v1.9.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
