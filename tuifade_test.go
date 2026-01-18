@@ -566,8 +566,8 @@ func BenchmarkColorCache_GetHSL_Cold(b *testing.B) {
 // 	}
 // }
 
-// BenchmarkUpdateSegmentColours benchmarks segment color updates
-func BenchmarkUpdateSegmentColours(b *testing.B) {
+// BenchmarkUpdateForegroundSegmentColours benchmarks segment color updates
+func BenchmarkUpdateForegroundSegmentColours(b *testing.B) {
 	segment := &ansiParse.StyledText{
 		Label: "test",
 		FgCol: &ansiParse.Col{},
@@ -583,7 +583,7 @@ func BenchmarkUpdateSegmentColours(b *testing.B) {
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = updateSegmentColours(segment, bgCol, fgCol)
+		_ = updateSegmentForegroundColours(segment, fgCol)
 	}
 }
 
@@ -596,41 +596,41 @@ func BenchmarkANSIParse_Small(b *testing.B) {
 }
 
 func BenchmarkANSIParse_Medium(b *testing.B) {
-	content := ""
-	for i := 0; i < 100; i++ {
-		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&content, "\x1b[%dmSegment %d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = ansiParse.Parse(content)
+		_, _ = ansiParse.Parse(content.String())
 	}
 }
 
 func BenchmarkANSIParse_Large(b *testing.B) {
-	content := ""
-	for i := 0; i < 1000; i++ {
-		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 1000 {
+		fmt.Fprintf(&content, "\x1b[%dmSegment %d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = ansiParse.Parse(content)
+		_, _ = ansiParse.Parse(content.String())
 	}
 }
 
 func BenchmarkANSIParse_VeryLarge(b *testing.B) {
-	content := ""
-	for i := 0; i < 3000; i++ {
-		content += fmt.Sprintf("\x1b[%dmSegment %d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 3000 {
+		fmt.Fprintf(&content, "\x1b[%dmSegment %d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = ansiParse.Parse(content)
+		_, _ = ansiParse.Parse(content.String())
 	}
 }
 
@@ -640,15 +640,15 @@ func BenchmarkFade_Small(b *testing.B) {
 	termFg := "#ffffff"
 	colourMode := ansiParse.TrueColour
 
-	content := ""
-	for i := 0; i < 10; i++ {
-		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 10 {
+		fmt.Fprintf(&content, "\x1b[%dmtext%d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+		_, _ = fade(content.String(), termBg, termFg, colourMode, 0.5)
 	}
 }
 
@@ -658,15 +658,15 @@ func BenchmarkFade_Medium(b *testing.B) {
 	termFg := "#ffffff"
 	colourMode := ansiParse.TrueColour
 
-	content := ""
-	for i := 0; i < 100; i++ {
-		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 100 {
+		fmt.Fprintf(&content, "\x1b[%dmtext%d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+		_, _ = fade(content.String(), termBg, termFg, colourMode, 0.5)
 	}
 }
 
@@ -676,15 +676,15 @@ func BenchmarkFade_Large(b *testing.B) {
 	termFg := "#ffffff"
 	colourMode := ansiParse.TrueColour
 
-	content := ""
-	for i := 0; i < 1000; i++ {
-		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 1000 {
+		fmt.Fprintf(&content, "\x1b[%dmtext%d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+		_, _ = fade(content.String(), termBg, termFg, colourMode, 0.5)
 	}
 }
 
@@ -694,15 +694,15 @@ func BenchmarkFade_VeryLarge(b *testing.B) {
 	termFg := "#ffffff"
 	colourMode := ansiParse.TrueColour
 
-	content := ""
-	for i := 0; i < 3000; i++ {
-		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
+	var content strings.Builder
+	for i := range 3000 {
+		fmt.Fprintf(&content, "\x1b[%dmtext%d ", 31+i%6, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+		_, _ = fade(content.String(), termBg, termFg, colourMode, 0.5)
 	}
 }
 
@@ -712,80 +712,18 @@ func BenchmarkFade_VeryLarge_RepeatedColors(b *testing.B) {
 	termFg := "#ffffff"
 	colourMode := ansiParse.TrueColour
 
-	content := ""
-	for i := 0; i < 3000; i++ {
+	var content strings.Builder
+	for i := range 3000 {
 		colorCode := 31 + i%6
-		content += fmt.Sprintf("\x1b[%dmtext%d ", colorCode, i)
+		fmt.Fprintf(&content, "\x1b[%dmtext%d ", colorCode, i)
 	}
-	content += "\x1b[0m"
+	content.WriteString("\x1b[0m")
 
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = fade(content, termBg, termFg, colourMode, 0.5)
+		_, _ = fade(content.String(), termBg, termFg, colourMode, 0.5)
 	}
 }
-
-// BenchmarkFade_WithoutPreProcess benchmarks Fade without preprocessing step (REMOVED - no longer applicable)
-// func BenchmarkFade_WithoutPreProcess(b *testing.B) {
-// 	termBg := "#000000"
-// 	termFg := "#ffffff"
-// 	colourMode := ansiParse.TrueColour
-//
-// 	content := ""
-// 	for i := 0; i < 1000; i++ {
-// 		content += fmt.Sprintf("\x1b[%dmtext%d ", 31+i%6, i)
-// 	}
-// 	content += "\x1b[0m"
-//
-// 	// Parse once
-// 	parsed, _ := ansiParse.Parse(content)
-//
-// 	b.ResetTimer()
-// 	for b.Loop() {
-// 		builder := strings.Builder{}
-// 		builder.Grow(len(content) * 2)
-//
-// 		for _, segment := range parsed {
-// 			segment.ColourMode = colourMode
-// 			bgCol := termBg
-// 			var fgCol string
-//
-// 			if segment.BgCol != nil && segment.BgCol.Hex != "" {
-// 				if segment.BgCol.Hex != termBg {
-// 					var err error
-// 					bgCol, err = Interpolate(bgCol, segment.BgCol.Hex, 0.5)
-// 					if err != nil {
-// 						b.Fatal(err)
-// 					}
-// 				}
-// 			}
-//
-// 			if segment.FgCol != nil && segment.FgCol.Hex != "" {
-// 				var err error
-// 				fgCol, err = Interpolate(bgCol, segment.FgCol.Hex, 0.5)
-// 				if err != nil {
-// 					b.Fatal(err)
-// 				}
-// 			} else {
-// 				if segment.FgCol == nil {
-// 					segment.FgCol = &ansiParse.Col{}
-// 				}
-//
-// 				var err error
-// 				fgCol, err = Interpolate(bgCol, termFg, 0.5)
-// 				if err != nil {
-// 					b.Fatal(err)
-// 				}
-// 			}
-//
-// 			err := updateSegmentColours(segment, bgCol, fgCol)
-// 			if err != nil {
-// 				b.Fatal(err)
-// 			}
-// 			builder.WriteString(segment.String())
-// 		}
-// 	}
-// }
 
 // BenchmarkStringBuilders benchmarks string building with different pre-allocation sizes
 func BenchmarkStringBuilders(b *testing.B) {
