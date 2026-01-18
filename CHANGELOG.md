@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.0.6] - 2026-01-17
+### :zap: Performance Improvements
+- [`3d47214`](https://github.com/rmhubbert/tuifade/commit/3d472146730fbdfd0ecbe0a00bbaf662b1b0cf09) - remove cache warm up and switch to ansi-parse String method *(commit by [@rmhubbert](https://github.com/rmhubbert))*
+
+### :white_check_mark: Tests
+- [`654cee1`](https://github.com/rmhubbert/tuifade/commit/654cee1ab54d186ee8d3041056d623a26d3a8e63) - add individual benchmark tests *(commit by [@rmhubbert](https://github.com/rmhubbert))*
+
+
 ## [v0.0.5] - 2026-01-17
 ### :zap: Performance Improvements
 - [`b0d2780`](https://github.com/rmhubbert/tuifade/commit/b0d27804ad6bbf1e3821945748ed1070c847c470) - add colour cache to stop repeated conversion *(commit by [@rmhubbert](https://github.com/rmhubbert))*
@@ -28,3 +36,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.0.2]: https://github.com/rmhubbert/tuilum/compare/v0.0.1...v0.0.2
 [v0.0.3]: https://github.com/rmhubbert/tuilum/compare/v0.0.2...v0.0.3
 [v0.0.5]: https://github.com/rmhubbert/tuifade/compare/v0.0.4...v0.0.5
+[v0.0.6]: https://github.com/rmhubbert/tuifade/compare/v0.0.5...v0.0.6
