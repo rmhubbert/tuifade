@@ -110,6 +110,7 @@ func Fade(content string, interpolation float64) (string, error) {
 	termBg := fmt.Sprintf("%s", termOutput.BackgroundColor())
 	termFg := fmt.Sprintf("%s", termOutput.ForegroundColor())
 	colourMode := colourModeFromProfile(profile)
+
 	return fade(content, termBg, termFg, colourMode, interpolation)
 }
 
@@ -122,9 +123,6 @@ func fade(
 
 	// Parse the input string into segments
 	parsed, _ := ansiParse.Parse(content)
-	// builder := strings.Builder{}
-	// Pre-allocate: estimate ~2x original length for ANSI sequences
-	// builder.Grow(len(content) * 2)
 
 	// Iterate over each segment and fade the background and foreground colours
 	for _, segment := range parsed {
@@ -141,6 +139,10 @@ func fade(
 				if err != nil {
 					return "", err
 				}
+				err = updateSegmentBackgroundColours(segment, bgCol)
+				if err != nil {
+					return "", err
+				}
 			}
 		}
 
@@ -148,6 +150,11 @@ func fade(
 		if segment.FgCol != nil && segment.FgCol.Hex != "" {
 			var err error
 			fgCol, err = Interpolate(bgCol, segment.FgCol.Hex, interpolation)
+			if err != nil {
+				return "", err
+			}
+
+			err = updateSegmentForegroundColours(segment, fgCol)
 			if err != nil {
 				return "", err
 			}
@@ -162,24 +169,43 @@ func fade(
 				return "", err
 			}
 
+			err = updateSegmentForegroundColours(segment, fgCol)
+			if err != nil {
+				return "", err
+			}
 		}
 
-		err := updateSegmentColours(segment, bgCol, fgCol)
-		if err != nil {
-			return "", err
-		}
-		// builder.WriteString(segment.String())
 	}
 	return ansiParse.String(parsed), nil
 }
 
-// updateSegment updates the background and foreground colours of a segment.
-func updateSegmentColours(segment *ansiParse.StyledText, bgCol, fgCol string) error {
-	if segment.BgCol == nil {
-		segment.BgCol = &ansiParse.Col{}
-	}
+// updateSegmentForegroundColours updates the foreground colours of a segment.
+func updateSegmentForegroundColours(segment *ansiParse.StyledText, fgCol string) error {
 	if segment.FgCol == nil {
 		segment.FgCol = &ansiParse.Col{}
+	}
+
+	segment.FgCol.Hex = fgCol
+	fgRgb, err := globalColourCache.getRGB(fgCol)
+	if err != nil {
+		return err
+	}
+	segment.FgCol.Rgb = fgRgb
+
+	fgHsl, err := globalColourCache.getHSL(fgCol)
+	if err != nil {
+		return err
+	}
+	segment.FgCol.Hsl = fgHsl
+
+	return nil
+}
+
+// updateSegment updates the background colours of a segment. It will do nothing if the segment
+// has no background colour.
+func updateSegmentBackgroundColours(segment *ansiParse.StyledText, bgCol string) error {
+	if segment.BgCol == nil {
+		return nil
 	}
 
 	segment.BgCol.Hex = bgCol
@@ -194,19 +220,6 @@ func updateSegmentColours(segment *ansiParse.StyledText, bgCol, fgCol string) er
 		return err
 	}
 	segment.BgCol.Hsl = bgHsl
-
-	segment.FgCol.Hex = fgCol
-	fgRgb, err := globalColourCache.getRGB(fgCol)
-	if err != nil {
-		return err
-	}
-	segment.FgCol.Rgb = fgRgb
-
-	fgHsl, err := globalColourCache.getHSL(fgCol)
-	if err != nil {
-		return err
-	}
-	segment.FgCol.Hsl = fgHsl
 
 	return nil
 }
