@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"sync"
 
 	ansiParse "github.com/leaanthony/go-ansi-parser"
 	"github.com/lucasb-eyer/go-colorful"
@@ -16,114 +15,17 @@ import (
 type rbgColour = ansiParse.Rgb
 type hslColour = ansiParse.Hsl
 
-// colourCache provides thread-safe caching of colour conversions
-type colourCache struct {
-	rgb map[string]rbgColour
-	hsl map[string]hslColour
-	mu  sync.RWMutex
+type InterpolationResult struct {
+	Hex string
+	Rgb rbgColour
+	Hsl hslColour
 }
 
-// global cache instance
-var globalColourCache = &colourCache{
-	rgb: make(map[string]rbgColour),
-	hsl: make(map[string]hslColour),
-}
-
-// interpolationCache stores computed interpolation results internally
-type interpolationCache struct {
-	cache map[string]string
-	mu    sync.RWMutex
-}
-
-// Global instance of the interpolation cache
-var globalInterpolationCache = &interpolationCache{
-	cache: make(map[string]string),
-}
-
-// generateCacheKey creates a simple key for interpolation caching
-func generateCacheKey(background, foreground string, interpolation float64) string {
-	return fmt.Sprintf("%s_%s_%.6f", background, foreground, interpolation)
-}
-
-// get retrieves a cached result or returns false if not found
-func (c *interpolationCache) get(key string) (string, bool) {
-	c.mu.RLock()
-	val, ok := c.cache[key]
-	c.mu.RUnlock()
-	return val, ok
-}
-
-// set stores a computed result in the cache
-func (c *interpolationCache) set(key, value string) {
-	c.mu.Lock()
-	c.cache[key] = value
-	c.mu.Unlock()
-}
-
-// GlobalInterpolationCache returns a pointer to the global interpolation cache for testing
-func GlobalInterpolationCache() *interpolationCache {
-	return globalInterpolationCache
-}
-
-// getRGB retrieves cached RGB conversion or computes and stores it
-func (c *colourCache) getRGB(hex string) (rbgColour, error) {
-	c.mu.RLock()
-	if rgb, ok := c.rgb[hex]; ok {
-		c.mu.RUnlock()
-		return rgb, nil
-	}
-	c.mu.RUnlock()
-
-	// Compute and cache
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// Double-check after acquiring write lock
-	if rgb, ok := c.rgb[hex]; ok {
-		return rgb, nil
-	}
-
-	rgb, err := hexToRGB(hex)
-	if err != nil {
-		return rbgColour{}, err
-	}
-	c.rgb[hex] = rgb
-	return rgb, nil
-}
-
-// getHSL retrieves cached HSL conversion or computes and stores it
-func (c *colourCache) getHSL(hex string) (hslColour, error) {
-	c.mu.RLock()
-	if hsl, ok := c.hsl[hex]; ok {
-		c.mu.RUnlock()
-		return hsl, nil
-	}
-	c.mu.RUnlock()
-
-	// Get RGB first (this may acquire its own lock, but we don't hold any lock yet)
-	rgb, err := c.getRGB(hex)
-	if err != nil {
-		return hslColour{}, err
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	// Double-check after acquiring write lock
-	if hsl, ok := c.hsl[hex]; ok {
-		return hsl, nil
-	}
-
-	// Convert RGB to HSL
-	h, s, l := rgbToHSL(rgb)
-
-	// Convert to hslColour type (H: 0-360, S: 0-100, L: 0-100)
-	result := hslColour{
-		H: h * 360.0,
-		S: s * 100.0,
-		L: l * 100.0,
-	}
-	c.hsl[hex] = result
-	return result, nil
+type Interpolation struct {
+	OriginalForeground string
+	OriginalBackground string
+	Interpolated       float64
+	Result             InterpolationResult
 }
 
 // Fade fades the background and foreground colours of an ANSI string.
@@ -154,108 +56,132 @@ func Fade(content string, interpolation float64) (string, error) {
 func fade(
 	content, termBg, termFg string,
 	colourMode ansiParse.ColourMode,
-	interpolation float64,
+	interpolationAmount float64,
 ) (string, error) {
 
 	// Parse the input string into segments
-	parsed, _ := ansiParse.Parse(content)
+	originalSegments, _ := ansiParse.Parse(
+		content,
+		ansiParse.WithDefaultBackgroundColor(termBg),
+		ansiParse.WithDefaultForegroundColor(termFg),
+	)
+	fadedSegments := []*ansiParse.StyledText{}
 
 	// Iterate over each segment and fade the background and foreground colours
-	for _, segment := range parsed {
-		// Set the colour mode based on the current profile
+	for _, originalSegment := range originalSegments {
+		segment := &ansiParse.StyledText{}
+		segment.Label = originalSegment.Label
+		segment.Style = originalSegment.Style
 		segment.ColourMode = colourMode
-		bgCol := termBg
-		var fgCol string
-
-		// If the background colour is set, fade it
-		if segment.BgCol != nil && segment.BgCol.Hex != "" {
-			if segment.BgCol.Hex != termBg {
-				var err error
-				bgCol, err = Interpolate(bgCol, segment.BgCol.Hex, interpolation)
-				if err != nil {
-					return "", err
-				}
-				err = updateSegmentBackgroundColours(segment, bgCol)
-				if err != nil {
-					return "", err
-				}
-			}
+		segment.Offset = originalSegment.Offset
+		segment.Len = originalSegment.Len
+		if originalSegment.FgCol != nil {
+			segment.FgCol = originalSegment.FgCol
+		}
+		if originalSegment.BgCol != nil {
+			segment.BgCol = originalSegment.BgCol
 		}
 
+		bgCol := termBg
+		// If the background colour is set, fade it
+		if originalSegment.BgCol != nil && originalSegment.BgCol.Hex != "" {
+			if originalSegment.BgCol.Hex != termBg {
+				var err error
+				interpolation, err := Interpolate(
+					bgCol,
+					originalSegment.BgCol.Hex,
+					interpolationAmount,
+				)
+				if err != nil {
+					return "", err
+				}
+				err = updateSegmentBackgroundColours(segment, interpolation.Result)
+				if err != nil {
+					return "", err
+				}
+				bgCol = interpolation.Result.Hex
+			}
+		}
 		// If the foreground colour is set, fade it
-		if segment.FgCol != nil && segment.FgCol.Hex != "" {
-			var err error
-			fgCol, err = Interpolate(bgCol, segment.FgCol.Hex, interpolation)
+		if originalSegment.FgCol != nil && originalSegment.FgCol.Hex != "" {
+			interpolation, err := Interpolate(bgCol, originalSegment.FgCol.Hex, interpolationAmount)
 			if err != nil {
 				return "", err
 			}
 
-			err = updateSegmentForegroundColours(segment, fgCol)
+			err = updateSegmentForegroundColours(segment, interpolation.Result)
 			if err != nil {
 				return "", err
 			}
 		} else { // If the foreground colour is not set, use the default foreground colour
-			if segment.FgCol == nil {
-				segment.FgCol = &ansiParse.Col{}
-			}
-
-			var err error
-			fgCol, err = Interpolate(bgCol, termFg, interpolation)
+			interpolation, err := Interpolate(bgCol, termFg, interpolationAmount)
 			if err != nil {
 				return "", err
 			}
 
-			err = updateSegmentForegroundColours(segment, fgCol)
+			err = updateSegmentForegroundColours(segment, interpolation.Result)
 			if err != nil {
 				return "", err
 			}
 		}
-
+		fadedSegments = append(fadedSegments, segment)
 	}
-	return ansiParse.String(parsed), nil
+	return ansiParse.String(fadedSegments), nil
 }
 
 // updateSegmentForegroundColours updates the foreground colours of a segment.
-func updateSegmentForegroundColours(segment *ansiParse.StyledText, fgCol string) error {
+func updateSegmentForegroundColours(
+	segment *ansiParse.StyledText,
+	colours InterpolationResult,
+) error {
 	if segment.FgCol == nil {
 		segment.FgCol = &ansiParse.Col{}
 	}
 
-	segment.FgCol.Hex = fgCol
-	fgRgb, err := globalColourCache.getRGB(fgCol)
-	if err != nil {
-		return err
+	segment.FgCol = &ansiParse.Col{
+		Id:   segment.FgCol.Id,
+		Name: segment.FgCol.Name,
+		Hex:  colours.Hex,
+		Rgb: ansiParse.Rgb{
+			R: colours.Rgb.R,
+			G: colours.Rgb.G,
+			B: colours.Rgb.B,
+		},
+		Hsl: ansiParse.Hsl{
+			H: colours.Hsl.H,
+			S: colours.Hsl.S,
+			L: colours.Hsl.L,
+		},
 	}
-	segment.FgCol.Rgb = fgRgb
-
-	fgHsl, err := globalColourCache.getHSL(fgCol)
-	if err != nil {
-		return err
-	}
-	segment.FgCol.Hsl = fgHsl
 
 	return nil
 }
 
 // updateSegment updates the background colours of a segment. It will do nothing if the segment
 // has no background colour.
-func updateSegmentBackgroundColours(segment *ansiParse.StyledText, bgCol string) error {
+func updateSegmentBackgroundColours(
+	segment *ansiParse.StyledText,
+	colours InterpolationResult,
+) error {
 	if segment.BgCol == nil {
 		return nil
 	}
 
-	segment.BgCol.Hex = bgCol
-	bgRgb, err := globalColourCache.getRGB(bgCol)
-	if err != nil {
-		return err
+	segment.BgCol = &ansiParse.Col{
+		Id:   segment.FgCol.Id,
+		Name: segment.FgCol.Name,
+		Hex:  colours.Hex,
+		Rgb: ansiParse.Rgb{
+			R: colours.Rgb.R,
+			G: colours.Rgb.G,
+			B: colours.Rgb.B,
+		},
+		Hsl: ansiParse.Hsl{
+			H: colours.Hsl.H,
+			S: colours.Hsl.S,
+			L: colours.Hsl.L,
+		},
 	}
-	segment.BgCol.Rgb = bgRgb
-
-	bgHsl, err := globalColourCache.getHSL(bgCol)
-	if err != nil {
-		return err
-	}
-	segment.BgCol.Hsl = bgHsl
 
 	return nil
 }
@@ -276,21 +202,24 @@ func colourModeFromProfile(profile termenv.Profile) ansiParse.ColourMode {
 //
 // The interpolation parameter controls the degree of fade. A value of 1 will result in no fade,
 // while a value of 0 will result in a fully faded string.
-func Interpolate(hexBackground, hexForeground string, interpolation float64) (string, error) {
-	// Check cache first
-	key := generateCacheKey(hexBackground, hexForeground, interpolation)
-	if result, ok := globalInterpolationCache.get(key); ok {
-		return result, nil
+func Interpolate(
+	hexBackground, hexForeground string,
+	interpolation float64,
+) (Interpolation, error) {
+	result := Interpolation{
+		OriginalForeground: hexForeground,
+		OriginalBackground: hexBackground,
+		Interpolated:       interpolation,
+		Result:             InterpolationResult{},
 	}
 
-	// Original interpolation logic
-	background, err := globalColourCache.getRGB(hexBackground)
+	background, err := hexToRGB(hexBackground)
 	if err != nil {
-		return "", err
+		return result, err
 	}
-	foreground, err := globalColourCache.getRGB(hexForeground)
+	foreground, err := hexToRGB(hexForeground)
 	if err != nil {
-		return "", err
+		return result, err
 	}
 
 	// Clamp interpolation value to valid range [0, 1]
@@ -308,10 +237,10 @@ func Interpolate(hexBackground, hexForeground string, interpolation float64) (st
 	g := interpolateChannel(background.G, foreground.G, bgWeight, fgWeight)
 	b := interpolateChannel(background.B, foreground.B, bgWeight, fgWeight)
 
-	result := rgbToHex(rbgColour{R: r, G: g, B: b})
-
-	// Store result in cache
-	globalInterpolationCache.set(key, result)
+	result.Result.Hex = rgbToHex(rbgColour{R: r, G: g, B: b})
+	result.Result.Rgb = rbgColour{R: r, G: g, B: b}
+	h, s, l := rgbToHSL(rbgColour{R: r, G: g, B: b})
+	result.Result.Hsl = hslColour{H: h, S: s, L: l}
 
 	return result, nil
 }
@@ -352,27 +281,27 @@ func rgbToHSL(rgb rbgColour) (h, s, l float64) {
 	return c.Hsl()
 }
 
-// hexToHSL converts a hex colour string to HSL.
-func hexToHSL(hex string) (hslColour, error) {
-	rgb, err := globalColourCache.getRGB(hex)
-	if err != nil {
-		return hslColour{}, err
-	}
-
-	// Create colorful.Color from RGB values (normalized to 0.0-1.0 range)
-	c := colorful.LinearRgb(
-		float64(rgb.R)/255.0,
-		float64(rgb.G)/255.0,
-		float64(rgb.B)/255.0,
-	)
-
-	// Get HSL values (H: 0-360, S: 0-1, L: 0-1)
-	h, s, l := c.Hsl()
-
-	// Convert to hslColour type (H: 0-360, S: 0-100, L: 0-100)
-	return hslColour{
-		H: h * 360.0,
-		S: s * 100.0,
-		L: l * 100.0,
-	}, nil
-}
+// // hexToHSL converts a hex colour string to HSL.
+// func hexToHSL(hex string) (hslColour, error) {
+// 	rgb, err := globalColourCache.getRGB(hex)
+// 	if err != nil {
+// 		return hslColour{}, err
+// 	}
+//
+// 	// Create colorful.Color from RGB values (normalized to 0.0-1.0 range)
+// 	c := colorful.LinearRgb(
+// 		float64(rgb.R)/255.0,
+// 		float64(rgb.G)/255.0,
+// 		float64(rgb.B)/255.0,
+// 	)
+//
+// 	// Get HSL values (H: 0-360, S: 0-1, L: 0-1)
+// 	h, s, l := c.Hsl()
+//
+// 	// Convert to hslColour type (H: 0-360, S: 0-100, L: 0-100)
+// 	return hslColour{
+// 		H: h * 360.0,
+// 		S: s * 100.0,
+// 		L: l * 100.0,
+// 	}, nil
+// }
