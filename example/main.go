@@ -10,11 +10,12 @@ import (
 
 func main() {
 	d := godump.NewDumper(godump.WithoutHeader())
+	fade := 1.0
 	colouredText := "\x1b[31mHello, World!\x1b[0m, this is a test. \x1b[33;45mThe end\x1b[0m."
 	fmt.Println(colouredText)
 	d.Dump(colouredText)
 
-	faded, err := tuifade.Fade(colouredText, 0.5)
+	faded, err := tuifade.Fade(colouredText, fade)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -22,8 +23,8 @@ func main() {
 	fmt.Println(faded)
 	d.Dump(faded)
 
-	repeated := strings.Repeat(colouredText, 2)
-	fadedRepeated, err := tuifade.Fade(repeated, 0.5)
+	repeated := strings.Repeat(colouredText, 3)
+	fadedRepeated, err := tuifade.Fade(repeated, fade)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
