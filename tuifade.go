@@ -29,6 +29,42 @@ var globalColourCache = &colourCache{
 	hsl: make(map[string]hslColour),
 }
 
+// interpolationCache stores computed interpolation results internally
+type interpolationCache struct {
+	cache map[string]string
+	mu    sync.RWMutex
+}
+
+// Global instance of the interpolation cache
+var globalInterpolationCache = &interpolationCache{
+	cache: make(map[string]string),
+}
+
+// generateCacheKey creates a simple key for interpolation caching
+func generateCacheKey(background, foreground string, interpolation float64) string {
+	return fmt.Sprintf("%s_%s_%.6f", background, foreground, interpolation)
+}
+
+// get retrieves a cached result or returns false if not found
+func (c *interpolationCache) get(key string) (string, bool) {
+	c.mu.RLock()
+	val, ok := c.cache[key]
+	c.mu.RUnlock()
+	return val, ok
+}
+
+// set stores a computed result in the cache
+func (c *interpolationCache) set(key, value string) {
+	c.mu.Lock()
+	c.cache[key] = value
+	c.mu.Unlock()
+}
+
+// GlobalInterpolationCache returns a pointer to the global interpolation cache for testing
+func GlobalInterpolationCache() *interpolationCache {
+	return globalInterpolationCache
+}
+
 // getRGB retrieves cached RGB conversion or computes and stores it
 func (c *colourCache) getRGB(hex string) (rbgColour, error) {
 	c.mu.RLock()
@@ -241,6 +277,13 @@ func colourModeFromProfile(profile termenv.Profile) ansiParse.ColourMode {
 // The interpolation parameter controls the degree of fade. A value of 1 will result in no fade,
 // while a value of 0 will result in a fully faded string.
 func Interpolate(hexBackground, hexForeground string, interpolation float64) (string, error) {
+	// Check cache first
+	key := generateCacheKey(hexBackground, hexForeground, interpolation)
+	if result, ok := globalInterpolationCache.get(key); ok {
+		return result, nil
+	}
+
+	// Original interpolation logic
 	background, err := globalColourCache.getRGB(hexBackground)
 	if err != nil {
 		return "", err
@@ -265,7 +308,12 @@ func Interpolate(hexBackground, hexForeground string, interpolation float64) (st
 	g := interpolateChannel(background.G, foreground.G, bgWeight, fgWeight)
 	b := interpolateChannel(background.B, foreground.B, bgWeight, fgWeight)
 
-	return rgbToHex(rbgColour{R: r, G: g, B: b}), nil
+	result := rgbToHex(rbgColour{R: r, G: g, B: b})
+
+	// Store result in cache
+	globalInterpolationCache.set(key, result)
+
+	return result, nil
 }
 
 // interpolateChannel performs linear interpolation for a single colour channel.
