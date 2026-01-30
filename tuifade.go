@@ -169,8 +169,8 @@ func updateSegmentBackgroundColours(
 	}
 
 	segment.BgCol = &ansiParse.Col{
-		Id:   segment.FgCol.Id,
-		Name: segment.FgCol.Name,
+		Id:   segment.BgCol.Id,
+		Name: segment.BgCol.Name,
 		Hex:  colours.hex,
 		Rgb: ansiParse.Rgb{
 			R: colours.rgb.R,
