@@ -15,17 +15,17 @@ import (
 type rbgColour = ansiParse.Rgb
 type hslColour = ansiParse.Hsl
 
-type InterpolationResult struct {
-	Hex string
-	Rgb rbgColour
-	Hsl hslColour
+type interpolationResult struct {
+	hex string
+	rgb rbgColour
+	hsl hslColour
 }
 
 type Interpolation struct {
-	OriginalForeground string
-	OriginalBackground string
-	Interpolated       float64
-	Result             InterpolationResult
+	originalForeground string
+	originalBackground string
+	interpolated       float64
+	result             interpolationResult
 }
 
 // Fade fades the background and foreground colours of an ANSI string.
@@ -58,7 +58,6 @@ func fade(
 	colourMode ansiParse.ColourMode,
 	interpolationAmount float64,
 ) (string, error) {
-
 	// Parse the input string into segments
 	originalSegments, _ := ansiParse.Parse(
 		content,
@@ -95,11 +94,13 @@ func fade(
 				if err != nil {
 					return "", err
 				}
-				err = updateSegmentBackgroundColours(segment, interpolation.Result)
+
+				err = updateSegmentBackgroundColours(segment, interpolation.result)
 				if err != nil {
 					return "", err
 				}
-				bgCol = interpolation.Result.Hex
+
+				bgCol = interpolation.result.hex
 			}
 		}
 		// If the foreground colour is set, fade it
@@ -109,7 +110,7 @@ func fade(
 				return "", err
 			}
 
-			err = updateSegmentForegroundColours(segment, interpolation.Result)
+			err = updateSegmentForegroundColours(segment, interpolation.result)
 			if err != nil {
 				return "", err
 			}
@@ -119,7 +120,7 @@ func fade(
 				return "", err
 			}
 
-			err = updateSegmentForegroundColours(segment, interpolation.Result)
+			err = updateSegmentForegroundColours(segment, interpolation.result)
 			if err != nil {
 				return "", err
 			}
@@ -132,7 +133,7 @@ func fade(
 // updateSegmentForegroundColours updates the foreground colours of a segment.
 func updateSegmentForegroundColours(
 	segment *ansiParse.StyledText,
-	colours InterpolationResult,
+	colours interpolationResult,
 ) error {
 	if segment.FgCol == nil {
 		segment.FgCol = &ansiParse.Col{}
@@ -141,16 +142,16 @@ func updateSegmentForegroundColours(
 	segment.FgCol = &ansiParse.Col{
 		Id:   segment.FgCol.Id,
 		Name: segment.FgCol.Name,
-		Hex:  colours.Hex,
+		Hex:  colours.hex,
 		Rgb: ansiParse.Rgb{
-			R: colours.Rgb.R,
-			G: colours.Rgb.G,
-			B: colours.Rgb.B,
+			R: colours.rgb.R,
+			G: colours.rgb.G,
+			B: colours.rgb.B,
 		},
 		Hsl: ansiParse.Hsl{
-			H: colours.Hsl.H,
-			S: colours.Hsl.S,
-			L: colours.Hsl.L,
+			H: colours.hsl.H,
+			S: colours.hsl.S,
+			L: colours.hsl.L,
 		},
 	}
 
@@ -161,7 +162,7 @@ func updateSegmentForegroundColours(
 // has no background colour.
 func updateSegmentBackgroundColours(
 	segment *ansiParse.StyledText,
-	colours InterpolationResult,
+	colours interpolationResult,
 ) error {
 	if segment.BgCol == nil {
 		return nil
@@ -170,16 +171,16 @@ func updateSegmentBackgroundColours(
 	segment.BgCol = &ansiParse.Col{
 		Id:   segment.FgCol.Id,
 		Name: segment.FgCol.Name,
-		Hex:  colours.Hex,
+		Hex:  colours.hex,
 		Rgb: ansiParse.Rgb{
-			R: colours.Rgb.R,
-			G: colours.Rgb.G,
-			B: colours.Rgb.B,
+			R: colours.rgb.R,
+			G: colours.rgb.G,
+			B: colours.rgb.B,
 		},
 		Hsl: ansiParse.Hsl{
-			H: colours.Hsl.H,
-			S: colours.Hsl.S,
-			L: colours.Hsl.L,
+			H: colours.hsl.H,
+			S: colours.hsl.S,
+			L: colours.hsl.L,
 		},
 	}
 
@@ -206,11 +207,17 @@ func Interpolate(
 	hexBackground, hexForeground string,
 	interpolation float64,
 ) (Interpolation, error) {
+	fmt.Printf(
+		"Interpolate: hexBackground = %s, hexForeground = %s, interpolation = %f\n",
+		hexBackground,
+		hexForeground,
+		interpolation,
+	)
 	result := Interpolation{
-		OriginalForeground: hexForeground,
-		OriginalBackground: hexBackground,
-		Interpolated:       interpolation,
-		Result:             InterpolationResult{},
+		originalForeground: hexForeground,
+		originalBackground: hexBackground,
+		interpolated:       interpolation,
+		result:             interpolationResult{},
 	}
 
 	background, err := hexToRGB(hexBackground)
@@ -237,10 +244,10 @@ func Interpolate(
 	g := interpolateChannel(background.G, foreground.G, bgWeight, fgWeight)
 	b := interpolateChannel(background.B, foreground.B, bgWeight, fgWeight)
 
-	result.Result.Hex = rgbToHex(rbgColour{R: r, G: g, B: b})
-	result.Result.Rgb = rbgColour{R: r, G: g, B: b}
+	result.result.hex = rgbToHex(rbgColour{R: r, G: g, B: b})
+	result.result.rgb = rbgColour{R: r, G: g, B: b}
 	h, s, l := rgbToHSL(rbgColour{R: r, G: g, B: b})
-	result.Result.Hsl = hslColour{H: h, S: s, L: l}
+	result.result.hsl = hslColour{H: h, S: s, L: l}
 
 	return result, nil
 }
