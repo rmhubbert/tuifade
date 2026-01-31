@@ -49,7 +49,11 @@ func Fade(content string, interpolation float64) (string, error) {
 	termFg := fmt.Sprintf("%s", termOutput.ForegroundColor())
 	colourMode := colourModeFromProfile(profile)
 
-	return fade(content, termBg, termFg, colourMode, interpolation)
+	i := clampInterpolation(interpolation)
+	if i == 1 {
+		return content, nil
+	}
+	return fade(content, termBg, termFg, colourMode, i)
 }
 
 // fade fades the background and foreground colours of an ANSI string.
@@ -130,6 +134,16 @@ func fade(
 	return ansiParse.String(fadedSegments), nil
 }
 
+// clampInterpolation clamps the interpolation value to the range [0, 1].
+func clampInterpolation(interpolation float64) float64 {
+	if interpolation < 0 {
+		return 0
+	} else if interpolation > 1 {
+		return 1
+	}
+	return interpolation
+}
+
 // updateSegmentForegroundColours updates the foreground colours of a segment.
 func updateSegmentForegroundColours(
 	segment *ansiParse.StyledText,
@@ -207,12 +221,6 @@ func Interpolate(
 	hexBackground, hexForeground string,
 	interpolation float64,
 ) (Interpolation, error) {
-	fmt.Printf(
-		"Interpolate: hexBackground = %s, hexForeground = %s, interpolation = %f\n",
-		hexBackground,
-		hexForeground,
-		interpolation,
-	)
 	result := Interpolation{
 		originalForeground: hexForeground,
 		originalBackground: hexBackground,
@@ -229,13 +237,6 @@ func Interpolate(
 		return result, err
 	}
 
-	// Clamp interpolation value to valid range [0, 1]
-	if interpolation < 0 {
-		interpolation = 0
-	} else if interpolation > 1 {
-		interpolation = 1
-	}
-
 	// Calculate interpolation weights
 	bgWeight := 1 - interpolation
 	fgWeight := interpolation
@@ -246,8 +247,7 @@ func Interpolate(
 
 	result.result.hex = rgbToHex(rbgColour{R: r, G: g, B: b})
 	result.result.rgb = rbgColour{R: r, G: g, B: b}
-	h, s, l := rgbToHSL(rbgColour{R: r, G: g, B: b})
-	result.result.hsl = hslColour{H: h, S: s, L: l}
+	result.result.hsl = rgbToHSL(rbgColour{R: r, G: g, B: b})
 
 	return result, nil
 }
@@ -276,7 +276,7 @@ func hexToRGB(hex string) (rbgColour, error) {
 }
 
 // rgbToHSL converts an rbgColour to HSL without re-parsing hex string.
-func rgbToHSL(rgb rbgColour) (h, s, l float64) {
+func rgbToHSL(rgb rbgColour) hslColour {
 	// Create colorful.Color from RGB values (normalized to 0.0-1.0 range)
 	c := colorful.LinearRgb(
 		float64(rgb.R)/255.0,
@@ -284,31 +284,10 @@ func rgbToHSL(rgb rbgColour) (h, s, l float64) {
 		float64(rgb.B)/255.0,
 	)
 
-	// Get HSL values (H: 0-360, S: 0-1, L: 0-1)
-	return c.Hsl()
+	h, s, l := c.Hsl()
+	return hslColour{
+		H: h,
+		S: s,
+		L: l,
+	}
 }
-
-// // hexToHSL converts a hex colour string to HSL.
-// func hexToHSL(hex string) (hslColour, error) {
-// 	rgb, err := globalColourCache.getRGB(hex)
-// 	if err != nil {
-// 		return hslColour{}, err
-// 	}
-//
-// 	// Create colorful.Color from RGB values (normalized to 0.0-1.0 range)
-// 	c := colorful.LinearRgb(
-// 		float64(rgb.R)/255.0,
-// 		float64(rgb.G)/255.0,
-// 		float64(rgb.B)/255.0,
-// 	)
-//
-// 	// Get HSL values (H: 0-360, S: 0-1, L: 0-1)
-// 	h, s, l := c.Hsl()
-//
-// 	// Convert to hslColour type (H: 0-360, S: 0-100, L: 0-100)
-// 	return hslColour{
-// 		H: h * 360.0,
-// 		S: s * 100.0,
-// 		L: l * 100.0,
-// 	}, nil
-// }
