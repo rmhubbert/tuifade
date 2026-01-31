@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.0] - 2026-01-31
+### :sparkles: New Features
+- [`0292e84`](https://github.com/rmhubbert/tuifade/commit/0292e843e4d375b36933e39e3a2ccc73f22a4735) - add terminfo cache *(commit by [@rmhubbert](https://github.com/rmhubbert))*
+
+
 ## [v0.3.0] - 2026-01-31
 ### :sparkles: New Features
 - [`0a2a8bb`](https://github.com/rmhubbert/tuifade/commit/0a2a8bb0d34bf0451139c33f881e091958d610e0) - add content cache *(commit by [@rmhubbert](https://github.com/rmhubbert))*
@@ -77,3 +82,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [v0.1.0]: https://github.com/rmhubbert/tuifade/compare/v0.0.8...v0.1.0
 [v0.2.0]: https://github.com/rmhubbert/tuifade/compare/v0.1.1...v0.2.0
 [v0.3.0]: https://github.com/rmhubbert/tuifade/compare/v0.2.0...v0.3.0
+[v0.4.0]: https://github.com/rmhubbert/tuifade/compare/v0.3.1...v0.4.0
