@@ -16,7 +16,8 @@ func main() {
 	fmt.Println(colouredText)
 	d.Dump(colouredText)
 
-	faded, err := tuifade.Fade(colouredText, fade)
+	fader := tuifade.Fader{}
+	faded, err := fader.Fade(colouredText, fade)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -25,7 +26,7 @@ func main() {
 	d.Dump(faded)
 
 	repeated := strings.Repeat(colouredText, 3)
-	fadedRepeated, err := tuifade.Fade(repeated, fade)
+	fadedRepeated, err := fader.Fade(repeated, fade)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
