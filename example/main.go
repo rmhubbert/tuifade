@@ -10,7 +10,7 @@ import (
 
 func main() {
 	d := godump.NewDumper(godump.WithoutHeader())
-	fade := 1.0
+	fade := 0.5
 	fmt.Printf("Fade: %f\n", fade)
 	colouredText := "\x1b[31mHello, World!\x1b[0m, this is a test. \x1b[33;45mThe end\x1b[0m."
 	fmt.Println(colouredText)
