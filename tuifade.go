@@ -20,9 +20,17 @@ type hslColour = ansiParse.Hsl
 type Fader struct {
 	colourCache  sync.Map
 	contentCache sync.Map
+	termInfo     *termInfo
 }
 
-type interpolationResult struct {
+type termInfo struct {
+	defaultOutput           *termenv.Output
+	defaultBackgroundColour string
+	defaultForegroundColour string
+	profile                 termenv.Profile
+}
+
+type InterpolationResult struct {
 	hex string
 	rgb rbgColour
 	hsl hslColour
@@ -32,7 +40,7 @@ type Interpolation struct {
 	originalForeground string
 	originalBackground string
 	interpolated       float64
-	result             interpolationResult
+	result             InterpolationResult
 }
 
 // Fade fades the background and foreground colours of an ANSI string.
@@ -45,10 +53,8 @@ type Interpolation struct {
 // If the current terminal does not support truecolor, the original content, plus an error is
 // returned.
 func (f *Fader) Fade(content string, interpolation float64) (string, error) {
-	termOutput := termenv.DefaultOutput()
-	profile := termOutput.EnvColorProfile()
-
-	if profile != termenv.TrueColor {
+	termInfo := f.generateTermInfo()
+	if termInfo.profile != termenv.TrueColor {
 		return content, errors.New("fade only supports truecolor terminals")
 	}
 
@@ -57,16 +63,18 @@ func (f *Fader) Fade(content string, interpolation float64) (string, error) {
 		return cached.(string), nil
 	}
 
-	termBg := fmt.Sprintf("%s", termOutput.BackgroundColor())
-	termFg := fmt.Sprintf("%s", termOutput.ForegroundColor())
-	colourMode := colourModeFromProfile(profile)
-
 	i := clampInterpolation(interpolation)
 	if i == 1 {
 		return content, nil
 	}
 
-	faded, err := f.fade(content, termBg, termFg, colourMode, i)
+	faded, err := f.fade(
+		content,
+		termInfo.defaultBackgroundColour,
+		termInfo.defaultForegroundColour,
+		colourModeFromProfile(termInfo.profile),
+		i,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -169,7 +177,7 @@ func (f *Fader) Interpolate(
 		originalForeground: hexForeground,
 		originalBackground: hexBackground,
 		interpolated:       interpolation,
-		result:             interpolationResult{},
+		result:             InterpolationResult{},
 	}
 
 	background, err := hexToRGB(hexBackground)
@@ -198,6 +206,21 @@ func (f *Fader) Interpolate(
 	return result, nil
 }
 
+func (f *Fader) generateTermInfo() *termInfo {
+	if f.termInfo != nil {
+		return f.termInfo
+	}
+
+	termOutput := termenv.DefaultOutput()
+	profile := termOutput.EnvColorProfile()
+	return &termInfo{
+		defaultOutput:           termOutput,
+		defaultBackgroundColour: fmt.Sprintf("%s", termOutput.BackgroundColor()),
+		defaultForegroundColour: fmt.Sprintf("%s", termOutput.ForegroundColor()),
+		profile:                 profile,
+	}
+}
+
 // generateColourCacheKey generates a cache key for the given parameters.
 func generateColourCacheKey(termBg, termFg string, interpolation float64) string {
 	return fmt.Sprintf("%s-%s-%f", termBg, termFg, interpolation)
@@ -220,7 +243,7 @@ func clampInterpolation(interpolation float64) float64 {
 // updateSegmentForegroundColours updates the foreground colours of a segment.
 func updateSegmentForegroundColours(
 	segment *ansiParse.StyledText,
-	colours interpolationResult,
+	colours InterpolationResult,
 ) error {
 	if segment.FgCol == nil {
 		segment.FgCol = &ansiParse.Col{}
@@ -249,7 +272,7 @@ func updateSegmentForegroundColours(
 // has no background colour.
 func updateSegmentBackgroundColours(
 	segment *ansiParse.StyledText,
-	colours interpolationResult,
+	colours InterpolationResult,
 ) error {
 	if segment.BgCol == nil {
 		return nil
