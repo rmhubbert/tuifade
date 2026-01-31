@@ -3,6 +3,7 @@
 package tuifade
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
@@ -17,7 +18,8 @@ type rbgColour = ansiParse.Rgb
 type hslColour = ansiParse.Hsl
 
 type Fader struct {
-	cache sync.Map
+	colourCache  sync.Map
+	contentCache sync.Map
 }
 
 type interpolationResult struct {
@@ -50,6 +52,11 @@ func (f *Fader) Fade(content string, interpolation float64) (string, error) {
 		return content, errors.New("fade only supports truecolor terminals")
 	}
 
+	contentCacheKey := generateContentCacheKey(content)
+	if cached, ok := f.contentCache.Load(contentCacheKey); ok {
+		return cached.(string), nil
+	}
+
 	termBg := fmt.Sprintf("%s", termOutput.BackgroundColor())
 	termFg := fmt.Sprintf("%s", termOutput.ForegroundColor())
 	colourMode := colourModeFromProfile(profile)
@@ -58,7 +65,13 @@ func (f *Fader) Fade(content string, interpolation float64) (string, error) {
 	if i == 1 {
 		return content, nil
 	}
-	return f.fade(content, termBg, termFg, colourMode, i)
+
+	faded, err := f.fade(content, termBg, termFg, colourMode, i)
+	if err != nil {
+		return "", err
+	}
+	f.contentCache.Store(contentCacheKey, faded)
+	return faded, nil
 }
 
 // fade fades the background and foreground colours of an ANSI string.
@@ -147,8 +160,8 @@ func (f *Fader) Interpolate(
 	hexBackground, hexForeground string,
 	interpolation float64,
 ) (Interpolation, error) {
-	cacheKey := generateCacheKey(hexBackground, hexForeground, interpolation)
-	if cached, ok := f.cache.Load(cacheKey); ok {
+	cacheKey := generateColourCacheKey(hexBackground, hexForeground, interpolation)
+	if cached, ok := f.colourCache.Load(cacheKey); ok {
 		return cached.(Interpolation), nil
 	}
 
@@ -180,14 +193,18 @@ func (f *Fader) Interpolate(
 	result.result.rgb = rbgColour{R: r, G: g, B: b}
 	result.result.hsl = rgbToHSL(rbgColour{R: r, G: g, B: b})
 
-	f.cache.Store(cacheKey, result)
+	f.colourCache.Store(cacheKey, result)
 
 	return result, nil
 }
 
-// generateCacheKey generates a cache key for the given parameters.
-func generateCacheKey(termBg, termFg string, interpolation float64) string {
+// generateColourCacheKey generates a cache key for the given parameters.
+func generateColourCacheKey(termBg, termFg string, interpolation float64) string {
 	return fmt.Sprintf("%s-%s-%f", termBg, termFg, interpolation)
+}
+
+func generateContentCacheKey(content string) string {
+	return base64.StdEncoding.EncodeToString([]byte(content))
 }
 
 // clampInterpolation clamps the interpolation value to the range [0, 1].
