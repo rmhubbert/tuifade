@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	ansiParse "github.com/leaanthony/go-ansi-parser"
 	"github.com/lucasb-eyer/go-colorful"
@@ -14,6 +15,10 @@ import (
 
 type rbgColour = ansiParse.Rgb
 type hslColour = ansiParse.Hsl
+
+type Fader struct {
+	cache sync.Map
+}
 
 type interpolationResult struct {
 	hex string
@@ -37,7 +42,7 @@ type Interpolation struct {
 //
 // If the current terminal does not support truecolor, the original content, plus an error is
 // returned.
-func Fade(content string, interpolation float64) (string, error) {
+func (f *Fader) Fade(content string, interpolation float64) (string, error) {
 	termOutput := termenv.DefaultOutput()
 	profile := termOutput.EnvColorProfile()
 
@@ -53,11 +58,11 @@ func Fade(content string, interpolation float64) (string, error) {
 	if i == 1 {
 		return content, nil
 	}
-	return fade(content, termBg, termFg, colourMode, i)
+	return f.fade(content, termBg, termFg, colourMode, i)
 }
 
 // fade fades the background and foreground colours of an ANSI string.
-func fade(
+func (f *Fader) fade(
 	content, termBg, termFg string,
 	colourMode ansiParse.ColourMode,
 	interpolationAmount float64,
@@ -90,7 +95,7 @@ func fade(
 		if originalSegment.BgCol != nil && originalSegment.BgCol.Hex != "" {
 			if originalSegment.BgCol.Hex != termBg {
 				var err error
-				interpolation, err := Interpolate(
+				interpolation, err := f.Interpolate(
 					bgCol,
 					originalSegment.BgCol.Hex,
 					interpolationAmount,
@@ -98,32 +103,32 @@ func fade(
 				if err != nil {
 					return "", err
 				}
-
 				err = updateSegmentBackgroundColours(segment, interpolation.result)
 				if err != nil {
 					return "", err
 				}
-
 				bgCol = interpolation.result.hex
 			}
 		}
 		// If the foreground colour is set, fade it
 		if originalSegment.FgCol != nil && originalSegment.FgCol.Hex != "" {
-			interpolation, err := Interpolate(bgCol, originalSegment.FgCol.Hex, interpolationAmount)
+			interpolation, err := f.Interpolate(
+				bgCol,
+				originalSegment.FgCol.Hex,
+				interpolationAmount,
+			)
 			if err != nil {
 				return "", err
 			}
-
 			err = updateSegmentForegroundColours(segment, interpolation.result)
 			if err != nil {
 				return "", err
 			}
 		} else { // If the foreground colour is not set, use the default foreground colour
-			interpolation, err := Interpolate(bgCol, termFg, interpolationAmount)
+			interpolation, err := f.Interpolate(bgCol, termFg, interpolationAmount)
 			if err != nil {
 				return "", err
 			}
-
 			err = updateSegmentForegroundColours(segment, interpolation.result)
 			if err != nil {
 				return "", err
@@ -132,6 +137,57 @@ func fade(
 		fadedSegments = append(fadedSegments, segment)
 	}
 	return ansiParse.String(fadedSegments), nil
+}
+
+// Interpolate interpolates the background and foreground colours of an ANSI string.
+//
+// The interpolation parameter controls the degree of fade. A value of 1 will result in no fade,
+// while a value of 0 will result in a fully faded string.
+func (f *Fader) Interpolate(
+	hexBackground, hexForeground string,
+	interpolation float64,
+) (Interpolation, error) {
+	cacheKey := generateCacheKey(hexBackground, hexForeground, interpolation)
+	if cached, ok := f.cache.Load(cacheKey); ok {
+		return cached.(Interpolation), nil
+	}
+
+	result := Interpolation{
+		originalForeground: hexForeground,
+		originalBackground: hexBackground,
+		interpolated:       interpolation,
+		result:             interpolationResult{},
+	}
+
+	background, err := hexToRGB(hexBackground)
+	if err != nil {
+		return result, err
+	}
+	foreground, err := hexToRGB(hexForeground)
+	if err != nil {
+		return result, err
+	}
+
+	// Calculate interpolation weights
+	bgWeight := 1 - interpolation
+	fgWeight := interpolation
+	// Interpolate each RGB channel
+	r := interpolateChannel(background.R, foreground.R, bgWeight, fgWeight)
+	g := interpolateChannel(background.G, foreground.G, bgWeight, fgWeight)
+	b := interpolateChannel(background.B, foreground.B, bgWeight, fgWeight)
+
+	result.result.hex = rgbToHex(rbgColour{R: r, G: g, B: b})
+	result.result.rgb = rbgColour{R: r, G: g, B: b}
+	result.result.hsl = rgbToHSL(rbgColour{R: r, G: g, B: b})
+
+	f.cache.Store(cacheKey, result)
+
+	return result, nil
+}
+
+// generateCacheKey generates a cache key for the given parameters.
+func generateCacheKey(termBg, termFg string, interpolation float64) string {
+	return fmt.Sprintf("%s-%s-%f", termBg, termFg, interpolation)
 }
 
 // clampInterpolation clamps the interpolation value to the range [0, 1].
@@ -211,45 +267,6 @@ func colourModeFromProfile(profile termenv.Profile) ansiParse.ColourMode {
 		return ansiParse.TwoFiveSix
 	}
 	return ansiParse.Default
-}
-
-// Interpolate interpolates the background and foreground colours of an ANSI string.
-//
-// The interpolation parameter controls the degree of fade. A value of 1 will result in no fade,
-// while a value of 0 will result in a fully faded string.
-func Interpolate(
-	hexBackground, hexForeground string,
-	interpolation float64,
-) (Interpolation, error) {
-	result := Interpolation{
-		originalForeground: hexForeground,
-		originalBackground: hexBackground,
-		interpolated:       interpolation,
-		result:             interpolationResult{},
-	}
-
-	background, err := hexToRGB(hexBackground)
-	if err != nil {
-		return result, err
-	}
-	foreground, err := hexToRGB(hexForeground)
-	if err != nil {
-		return result, err
-	}
-
-	// Calculate interpolation weights
-	bgWeight := 1 - interpolation
-	fgWeight := interpolation
-	// Interpolate each RGB channel
-	r := interpolateChannel(background.R, foreground.R, bgWeight, fgWeight)
-	g := interpolateChannel(background.G, foreground.G, bgWeight, fgWeight)
-	b := interpolateChannel(background.B, foreground.B, bgWeight, fgWeight)
-
-	result.result.hex = rgbToHex(rbgColour{R: r, G: g, B: b})
-	result.result.rgb = rbgColour{R: r, G: g, B: b}
-	result.result.hsl = rgbToHSL(rbgColour{R: r, G: g, B: b})
-
-	return result, nil
 }
 
 // interpolateChannel performs linear interpolation for a single colour channel.
