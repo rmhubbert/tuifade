@@ -8,7 +8,10 @@ require (
 	github.com/muesli/termenv v0.16.0
 )
 
-require github.com/stretchr/testify v1.11.1 // indirect
+require (
+	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/stretchr/testify v1.11.1 // indirect
+)
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

@@ -3,12 +3,13 @@
 package tuifade
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"sync"
 
+	"github.com/cespare/xxhash/v2"
 	ansiParse "github.com/leaanthony/go-ansi-parser"
 	"github.com/lucasb-eyer/go-colorful"
 	"github.com/muesli/termenv"
@@ -89,11 +90,14 @@ func (f *Fader) fade(
 	interpolationAmount float64,
 ) (string, error) {
 	// Parse the input string into segments
-	originalSegments, _ := ansiParse.Parse(
+	originalSegments, err := ansiParse.Parse(
 		content,
 		ansiParse.WithDefaultBackgroundColor(termBg),
 		ansiParse.WithDefaultForegroundColor(termFg),
 	)
+	if err != nil {
+		return "", err
+	}
 	fadedSegments := []*ansiParse.StyledText{}
 
 	// Iterate over each segment and fade the background and foreground colours
@@ -227,7 +231,13 @@ func generateColourCacheKey(termBg, termFg string, interpolation float64) string
 }
 
 func generateContentCacheKey(content string) string {
-	return base64.StdEncoding.EncodeToString([]byte(content))
+	// xxhash.Sum64String is ~20x faster than base64 encoding
+	// and produces an 8-byte hash instead of ~33% of content size
+	hash := xxhash.Sum64String(content)
+
+	// Convert to base-36 string for shorter cache keys
+	// 64-bit hash in base-36 is 11 characters max
+	return strconv.FormatUint(hash, 36)
 }
 
 // clampInterpolation clamps the interpolation value to the range [0, 1].
