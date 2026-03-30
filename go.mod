@@ -3,15 +3,13 @@ module github.com/rmhubbert/tuifade
 go 1.25.5
 
 require (
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/leaanthony/go-ansi-parser v1.6.1
-	github.com/lucasb-eyer/go-colorful v1.3.0
+	github.com/lucasb-eyer/go-colorful v1.4.0
 	github.com/muesli/termenv v0.16.0
 )
 
-require (
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/stretchr/testify v1.11.1 // indirect
-)
+require github.com/stretchr/testify v1.11.1 // indirect
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
